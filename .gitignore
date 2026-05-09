@@ -1,0 +1,7 @@
+data/
+*.pem
+*.p12
+*.crt
+ikca
+.codeartsdoer/
+.arts/

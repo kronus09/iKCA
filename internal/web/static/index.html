@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iKCA - IKEv2 证书生成器</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231e293b'/><text x='16' y='22' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='14' fill='%233b82f6'>iK</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
+  .card { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(100, 116, 139, 0.3); }
+  .input-field { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(100, 116, 139, 0.4); color: #e2e8f0; }
+  .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+  .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); transition: all 0.3s; }
+  .btn-primary:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-download { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #10b981; transition: all 0.2s; }
+  .btn-download:hover { background: rgba(16, 185, 129, 0.25); }
+  .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; transition: all 0.2s; }
+  .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+  .fade-in { animation: fadeIn 0.5s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .spinner { border: 3px solid rgba(59, 130, 246, 0.2); border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  pre.cert-block { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(100, 116, 139, 0.3); color: #94a3b8; font-size: 0.75rem; max-height: 200px; overflow: auto; }
+  .step-number { background: linear-gradient(135deg, #3b82f6, #2563eb); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; flex-shrink: 0; }
+  .step-number-warn { background: linear-gradient(135deg, #eab308, #ca8a04); }
+  .alert-box { background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); }
+</style>
+</head>
+<body class="gradient-bg min-h-screen text-slate-200">
+
+<div class="max-w-5xl mx-auto px-4 py-8">
+  <div class="text-center mb-8">
+    <h1 class="text-4xl font-bold mb-2">
+      <span class="text-blue-400">iKCA</span>
+    </h1>
+    <p class="text-slate-300 text-sm font-medium">IKEv2 证书生成器</p>
+    <p class="text-slate-500 text-xs mt-1">一键生成 IKEv2/IPSec 自签证书 · 支持 50 年有效期 · Windows/Android/iOS 原生连接</p>
+  </div>
+
+  <div class="lg:flex lg:gap-6">
+    <!-- Left -->
+    <div class="lg:w-[60%] mb-6 lg:mb-0">
+
+      <!-- Form: always visible -->
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4 text-slate-100">参数配置</h2>
+        <form id="certForm" class="space-y-4">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">国家代码 (C)</label>
+              <input type="text" name="country" value="CN" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="CN">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">组织名称 (O)</label>
+              <input type="text" name="org" value="IKEv2VPN" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="IKEv2VPN">
+            </div>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">CA 名称</label>
+              <input type="text" name="ca_name" value="ikev2ca" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="ikev2ca">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">共享 SAN (iOS/macOS)</label>
+              <input type="text" name="shared_san" value="IKEv2Clients" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="IKEv2Clients">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">服务器域名 <span class="text-red-400">*</span></label>
+            <input type="text" name="domain" required class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="例: vpn.example.com 或 ddns 域名">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">客户端名称（空格分隔多个）</label>
+            <input type="text" name="client_names" value="win android ios" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="例: win android ios（按设备系统命名，不影响 IKEv2 登录用户名）">
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">CA 有效期（天）</label>
+              <input type="number" name="ca_lifetime" value="3652" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" min="365">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">证书有效期（天）</label>
+              <input type="number" name="cert_lifetime" value="18250" class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" min="365">
+              <p class="text-xs text-slate-500 mt-1">18250天 ≈ 50年</p>
+            </div>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">CA 密码 <span class="text-red-400">*</span></label>
+              <input type="password" name="ca_pass" required class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="CA p12 导出密码">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">客户端密码 <span class="text-red-400">*</span></label>
+              <input type="password" name="client_pass" required class="input-field w-full rounded-lg px-3 py-2 text-sm outline-none" placeholder="客户端 p12 安装密码">
+            </div>
+          </div>
+
+          <div class="alert-box rounded-lg p-3 text-xs text-yellow-300">
+            <strong>重要提示：</strong>CA 密码和客户端密码请务必记住！配置 IKEv2 客户端时需要用到。客户端密码仅在安装 p12 证书时需要，不影响 IKEv2 认证。
+          </div>
+
+          <button type="submit" id="generateBtn" class="btn-primary w-full text-white rounded-lg py-3 font-medium text-sm">
+            生成证书
+          </button>
+        </form>
+      </div>
+
+      <!-- Result: below form -->
+      <div id="resultSection" class="card rounded-xl p-6 mb-6 hidden fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-slate-100">生成结果</h2>
+          <button id="btnClear" class="btn-danger rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            清理证书
+          </button>
+        </div>
+
+        <!-- Saved Info -->
+        <div id="savedInfoSection" class="hidden mb-4 alert-box rounded-lg p-3 text-xs">
+          <p class="font-medium text-yellow-300 mb-2">证书录入信息（安装证书时需要）</p>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-300">
+            <div>服务器域名：</div><div id="savedDomain" class="text-emerald-300 font-mono"></div>
+            <div>CA 密码：</div><div id="savedCaPass" class="text-emerald-300 font-mono"></div>
+            <div>客户端密码：</div><div id="savedClientPass" class="text-emerald-300 font-mono"></div>
+            <div>生成时间：</div><div id="savedGenTime" class="text-slate-400"></div>
+          </div>
+          <p class="mt-2 text-yellow-200/70">提示：CA 密码用于安装 ca.p12；客户端密码用于安装 client_*.p12</p>
+        </div>
+
+        <!-- CA Info -->
+        <div class="mb-4">
+          <h3 class="text-sm font-medium text-blue-400 mb-2">CA 证书</h3>
+          <div id="caInfo" class="text-xs text-slate-400"></div>
+          <div class="mt-2 text-xs text-slate-500 space-y-1">
+            <p><code class="text-emerald-400">ca.p12</code> — CA 证书+私钥打包文件，<strong class="text-slate-300">Windows 安装 CA 时用此文件</strong>（导入时需输入 CA 密码）</p>
+            <p><code class="text-emerald-400">caCert.pem</code> — CA 证书 PEM 格式（仅公钥），<strong class="text-slate-300">iKuai 等服务端不需要</strong>，调试查看用</p>
+            <p><code class="text-emerald-400">caCert.crt</code> — CA 证书 DER 格式（仅公钥），<strong class="text-slate-300">Android / iOS / macOS 安装信任时用此文件</strong></p>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <a href="/api/download/ca" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              ca.p12（Windows用）
+            </a>
+            <a href="/api/download/ca-crt" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              caCert.crt（安卓/iOS用）
+            </a>
+            <a href="/api/download/ca-cert" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              caCert.pem（查看用）
+            </a>
+          </div>
+        </div>
+
+        <!-- Server Info -->
+        <div class="mb-4">
+          <h3 class="text-sm font-medium text-blue-400 mb-2">服务端证书</h3>
+          <div id="serverInfo" class="text-xs text-slate-400"></div>
+          <div class="flex gap-2 mt-2">
+            <a href="/api/download/server-cert" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              serverCert.pem
+            </a>
+            <a href="/api/download/server-key" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+              serverKey.pem
+            </a>
+          </div>
+          <details class="mt-2">
+            <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-400">查看服务端证书 PEM</summary>
+            <pre id="serverCertPem" class="cert-block rounded-lg p-3 mt-1 whitespace-pre-wrap break-all"></pre>
+          </details>
+          <details class="mt-1">
+            <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-400">查看服务端私钥 PEM</summary>
+            <pre id="serverKeyPem" class="cert-block rounded-lg p-3 mt-1 whitespace-pre-wrap break-all"></pre>
+          </details>
+        </div>
+
+        <!-- Client Info -->
+        <div>
+          <h3 class="text-sm font-medium text-blue-400 mb-2">客户端证书</h3>
+          <div id="clientInfo" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="errorSection" class="card rounded-xl p-6 mb-6 hidden fade-in">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div>
+            <h3 class="text-sm font-medium text-red-400">生成失败</h3>
+            <p id="errorMsg" class="text-xs text-slate-400 mt-1"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Guide -->
+    <div class="lg:w-[40%]">
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4 text-slate-100">使用说明</h2>
+        <div class="space-y-4 text-sm text-slate-300">
+          <div class="flex gap-3">
+            <div class="step-number text-white">1</div>
+            <div>
+              <p class="font-medium text-slate-200">填写参数并生成证书</p>
+              <p class="text-xs text-slate-400 mt-1">填写服务器域名，设置 CA 和客户端密码后点击生成</p>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="step-number step-number-warn text-white">2</div>
+            <div>
+              <p class="font-medium text-yellow-300">安装 CA 证书到客户端设备</p>
+              <p class="text-xs text-slate-400 mt-1">所有客户端设备都必须先安装并信任 CA 证书</p>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="step-number text-white">3</div>
+            <div>
+              <p class="font-medium text-slate-200">安装客户端 p12 证书</p>
+              <p class="text-xs text-slate-400 mt-1">下载 <code class="text-blue-300">client_*.p12</code> 导入到 Windows/Android/iOS 设备</p>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="step-number text-white">4</div>
+            <div>
+              <p class="font-medium text-slate-200">配置 IKEv2 服务端</p>
+              <p class="text-xs text-slate-400 mt-1">上传 serverCert + serverKey 到 iKuai 等路由器</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CA 证书安装指南 -->
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-3 text-slate-100">
+          <span class="text-yellow-400">CA 证书安装指南</span>
+        </h2>
+        <div class="text-xs text-slate-400 space-y-3">
+          <div>
+            <p class="font-medium text-slate-300 mb-1">Windows（用 <code class="text-blue-300">ca.p12</code>）</p>
+            <ol class="list-decimal list-inside space-y-1 ml-2">
+              <li>下载 <code class="text-blue-300">ca.p12</code>（含私钥，需输入 CA 密码安装）</li>
+              <li>双击打开 → 安装证书</li>
+              <li>存储位置选"本地计算机" → 下一步</li>
+              <li>输入 CA 密码 → 选"将所有的证书都放入下列存储"</li>
+              <li>浏览 → 选择 <strong class="text-yellow-200">"受信任的根证书颁发机构"</strong> → 确定</li>
+              <li>完成安装</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-slate-300 mb-1">Android（用 <code class="text-blue-300">caCert.crt</code>）</p>
+            <ol class="list-decimal list-inside space-y-1 ml-2">
+              <li>下载 <code class="text-blue-300">caCert.crt</code>（仅公钥证书）到手机</li>
+              <li>设置 → 安全 → 加密与凭据 → 从存储设备安装</li>
+              <li>选择 CA 证书 → 选择文件 → 命名 → 安装</li>
+              <li>部分 Android 需要设锁屏密码才能安装证书</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-slate-300 mb-1">iOS / macOS（用 <code class="text-blue-300">caCert.crt</code>）</p>
+            <ol class="list-decimal list-inside space-y-1 ml-2">
+              <li>通过 AirDrop 或邮件发送 <code class="text-blue-300">caCert.crt</code> 到设备</li>
+              <li>打开文件 → 允许安装描述文件</li>
+              <li>去 <strong class="text-yellow-200">设置 → 通用 → VPN与设备管理</strong> 安装描述文件</li>
+              <li>再去 <strong class="text-yellow-200">设置 → 通用 → 关于本机 → 证书信任设置</strong></li>
+              <li>找到 CA 证书，<strong class="text-yellow-200">开启完全信任</strong>（这一步很重要！）</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-3 text-slate-100">iKuai 配置指南</h2>
+        <div class="text-xs text-slate-400 space-y-3">
+          <div>
+            <p class="font-medium text-slate-300 mb-1">1. IKEv2/IPsec 服务端配置</p>
+            <ul class="list-disc list-inside space-y-1 ml-2">
+              <li>类型：IKEv2/IPsec MSCHAPv2</li>
+              <li>本地标识：填写你的域名</li>
+              <li>服务端证书：粘贴 serverCert_*.pem 内容</li>
+              <li>私钥：粘贴 serverKey_*.pem 内容</li>
+              <li>开启服务端状态并保存</li>
+            </ul>
+          </div>
+          <div>
+            <p class="font-medium text-slate-300 mb-1">2. 创建 VPN 账号</p>
+            <ul class="list-disc list-inside space-y-1 ml-2">
+              <li>路径：认证计费 → 认证账号管理 → 账号管理</li>
+              <li>认证类型可选限 ikev2 或不限</li>
+              <li>IP 绑定类型可固定或地址池</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-6">
+        <h2 class="text-lg font-semibold mb-3 text-slate-100">常见问题</h2>
+        <div class="text-xs text-slate-400 space-y-2">
+          <div>
+            <p class="font-medium text-yellow-300">Q: IKE 身份验证凭证不可接受？</p>
+            <p>A: <strong class="text-yellow-200">90% 是 CA 证书没安装或没信任</strong>。请先按上面指南安装 CA 证书，确保域名与证书一致</p>
+          </div>
+          <div>
+            <p class="font-medium text-yellow-300">Q: iOS 连接提示"无法验证服务器身份"？</p>
+            <p>A: 去设置 → 通用 → 关于本机 → 证书信任设置，开启 CA 证书的完全信任开关</p>
+          </div>
+          <div>
+            <p class="font-medium text-yellow-300">Q: 证书有效期多久？</p>
+            <p>A: 默认 50 年（18250天），一步到位不用频繁换证书</p>
+          </div>
+          <div>
+            <p class="font-medium text-yellow-300">Q: 客户端名称有什么用？</p>
+            <p>A: 仅用于区分不同设备的 p12 证书，不影响 IKEv2 登录用户名</p>
+          </div>
+          <div>
+            <p class="font-medium text-yellow-300">Q: 为什么需要两个密码？</p>
+            <p>A: CA 密码用于保护 CA 私钥（管理员用）；客户端密码仅在安装 p12 证书时需要输入</p>
+          </div>
+          <div>
+            <p class="font-medium text-yellow-300">Q: 三种 CA 证书文件有什么区别？</p>
+            <p>A: <code class="text-blue-300">ca.p12</code>=证书+私钥（Windows安装用）；<code class="text-blue-300">caCert.crt</code>=仅公钥DER格式（Android/iOS安装用）；<code class="text-blue-300">caCert.pem</code>=仅公钥PEM格式（查看调试用）</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center text-xs text-slate-600 mt-8">iKCA &middot; IKEv2 Certificate Generator &middot; design by <a href="https://github.com/kronus09" class="text-slate-500 hover:text-blue-400 underline underline-offset-2" target="_blank">kronus09</a></footer>
+</div>
+
+<script>
+const form = document.getElementById('certForm');
+const btn = document.getElementById('generateBtn');
+const resultSection = document.getElementById('resultSection');
+const errorSection = document.getElementById('errorSection');
+
+const dlIcon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>';
+
+function showResult(d, savedInfo) {
+  document.getElementById('caInfo').innerHTML =
+    `<p>Subject: ${d.ca.subject}</p><p>有效期至: ${d.ca.not_after}</p>`;
+  document.getElementById('serverInfo').innerHTML =
+    `<p>Subject: ${d.server.subject}</p><p>有效期至: ${d.server.not_after}</p>`;
+  if (d.server.cert_pem) document.getElementById('serverCertPem').textContent = d.server.cert_pem;
+  if (d.server.key_pem) document.getElementById('serverKeyPem').textContent = d.server.key_pem;
+
+  const clientDiv = document.getElementById('clientInfo');
+  clientDiv.innerHTML = '';
+  for (const c of d.clients) {
+    clientDiv.innerHTML += `
+      <div class="text-xs text-slate-400">
+        <p class="font-medium text-slate-300">${c.name}</p>
+        <p>Subject: ${c.subject} | 有效期至: ${c.not_after}</p>
+        <a href="/api/download/client?name=${encodeURIComponent(c.name)}" class="btn-download rounded-lg px-3 py-1.5 text-xs inline-flex items-center gap-1 mt-1">
+          ${dlIcon} client_${c.name}.p12
+        </a>
+      </div>`;
+  }
+
+  if (savedInfo) {
+    const infoDiv = document.getElementById('savedInfoSection');
+    infoDiv.classList.remove('hidden');
+    document.getElementById('savedDomain').textContent = savedInfo.domain || '';
+    document.getElementById('savedCaPass').textContent = savedInfo.ca_pass || '';
+    document.getElementById('savedClientPass').textContent = savedInfo.client_pass || '';
+    document.getElementById('savedGenTime').textContent = savedInfo.generated_at || new Date().toLocaleString();
+  }
+
+  resultSection.classList.remove('hidden');
+}
+
+function hideResult() {
+  resultSection.classList.add('hidden');
+  document.getElementById('savedInfoSection').classList.add('hidden');
+  document.getElementById('serverCertPem').textContent = '';
+  document.getElementById('serverKeyPem').textContent = '';
+}
+
+function fillForm(d) {
+  form.querySelector('[name="domain"]').value = d.domain || '';
+  form.querySelector('[name="country"]').value = d.country || 'CN';
+  form.querySelector('[name="org"]').value = d.org || 'IKEv2VPN';
+  form.querySelector('[name="ca_name"]').value = d.ca_name || 'ikev2ca';
+  form.querySelector('[name="shared_san"]').value = d.shared_san || 'IKEv2Clients';
+  form.querySelector('[name="client_names"]').value = (d.client_names || []).join(' ');
+  form.querySelector('[name="ca_lifetime"]').value = d.ca_lifetime || 3652;
+  form.querySelector('[name="cert_lifetime"]').value = d.cert_lifetime || 18250;
+  form.querySelector('[name="ca_pass"]').value = d.ca_pass || '';
+  form.querySelector('[name="client_pass"]').value = d.client_pass || '';
+}
+
+async function loadExisting() {
+  try {
+    const resp = await fetch('/api/status');
+    const data = await resp.json();
+    if (!data.success || !data.data.exists) return;
+
+    const d = data.data;
+    fillForm(d);
+    showResult({
+      ca: {subject: d.ca_subject, not_after: d.ca_not_after},
+      server: {subject: d.server_subject, not_after: d.server_not_after, cert_pem: null, key_pem: null},
+      clients: d.clients
+    }, {domain: d.domain, ca_pass: d.ca_pass, client_pass: d.client_pass, generated_at: d.generated_at});
+  } catch (e) {
+    // ignore
+  }
+}
+
+loadExisting();
+
+document.getElementById('btnClear').addEventListener('click', async () => {
+  if (!confirm('确定要清理所有已生成的证书吗？此操作不可恢复！')) return;
+  try {
+    await fetch('/api/clear', {method: 'POST'});
+  } catch (e) {}
+  hideResult();
+  form.querySelector('[name="domain"]').value = '';
+  form.querySelector('[name="ca_pass"]').value = '';
+  form.querySelector('[name="client_pass"]').value = '';
+  form.querySelector('[name="client_names"]').value = 'win android ios';
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner mr-2"></span>正在生成...';
+  hideResult();
+  errorSection.classList.add('hidden');
+
+  const fd = new FormData(form);
+  const body = {};
+  for (const [k, v] of fd.entries()) {
+    if (k === 'ca_lifetime' || k === 'cert_lifetime') {
+      body[k] = parseInt(v, 10);
+    } else {
+      body[k] = v;
+    }
+  }
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+
+    if (!data.success) {
+      document.getElementById('errorMsg').textContent = data.message || '未知错误';
+      errorSection.classList.remove('hidden');
+      return;
+    }
+
+    const d = data.data;
+    showResult(d, {domain: body.domain, ca_pass: body.ca_pass, client_pass: body.client_pass, generated_at: null});
+  } catch (err) {
+    document.getElementById('errorMsg').textContent = '网络错误: ' + err.message;
+    errorSection.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成证书';
+  }
+});
+</script>
+</body>
+</html>

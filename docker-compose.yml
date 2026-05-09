@@ -1,0 +1,12 @@
+services:
+  ikca:
+    build: .
+    image: ikca:latest
+    container_name: ikca
+    ports:
+      - "20509:20509"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
