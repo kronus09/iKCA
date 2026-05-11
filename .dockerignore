@@ -1,6 +1,8 @@
+.git
 .codeartsdoer/
 .arts/
+data/
+*.tgz
 ikca
-data/*.pem
-data/*.p12
-data/*.crt
+README.md
+docker-deploy.yaml

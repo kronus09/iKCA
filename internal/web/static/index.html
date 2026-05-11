@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>iKCA - IKEv2 证书生成器</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231e293b'/><text x='16' y='22' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='14' fill='%233b82f6'>iK</text></svg>">
-<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="tailwind.css">
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
   .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
@@ -99,7 +99,11 @@
           </div>
 
           <div class="alert-box rounded-lg p-3 text-xs text-yellow-300">
-            <strong>重要提示：</strong>CA 密码和客户端密码请务必记住！配置 IKEv2 客户端时需要用到。客户端密码仅在安装 p12 证书时需要，不影响 IKEv2 认证。
+            <strong>安全提示：</strong>CA 密码仅供 IPsec 管理员知晓，请选择高强度密码！客户端密码在安装 p12 证书时需要，不影响 IKEv2 认证。两个密码请务必牢记，丢失后无法恢复。
+          </div>
+
+          <div id="lifetimeWarn" class="hidden rounded-lg p-3 text-xs text-orange-300" style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);">
+            <strong>注意：</strong>证书有效期超过 10 年（3650天），部分设备可能不信任超长有效期证书。<strong class="text-orange-200">Apple 设备（iOS/macOS）要求证书有效期不超过 825 天</strong>，否则将拒绝信任。建议 Apple 设备用户将证书有效期设为 825 天。
           </div>
 
           <button type="submit" id="generateBtn" class="btn-primary w-full text-white rounded-lg py-3 font-medium text-sm">
@@ -211,21 +215,14 @@
             </div>
           </div>
           <div class="flex gap-3">
-            <div class="step-number step-number-warn text-white">2</div>
+            <div class="step-number text-white">2</div>
             <div>
-              <p class="font-medium text-yellow-300">安装 CA 证书到客户端设备</p>
-              <p class="text-xs text-slate-400 mt-1">所有客户端设备都必须先安装并信任 CA 证书</p>
+              <p class="font-medium text-slate-200">安装客户端 p12 证书</p>
+              <p class="text-xs text-slate-400 mt-1">下载 <code class="text-blue-300">client_*.p12</code> 导入到客户端设备；iOS/macOS 还需额外安装 <code class="text-blue-300">caCert.crt</code> 并开启信任</p>
             </div>
           </div>
           <div class="flex gap-3">
             <div class="step-number text-white">3</div>
-            <div>
-              <p class="font-medium text-slate-200">安装客户端 p12 证书</p>
-              <p class="text-xs text-slate-400 mt-1">下载 <code class="text-blue-300">client_*.p12</code> 导入到 Windows/Android/iOS 设备</p>
-            </div>
-          </div>
-          <div class="flex gap-3">
-            <div class="step-number text-white">4</div>
             <div>
               <p class="font-medium text-slate-200">配置 IKEv2 服务端</p>
               <p class="text-xs text-slate-400 mt-1">上传 serverCert + serverKey 到 iKuai 等路由器</p>
@@ -234,40 +231,43 @@
         </div>
       </div>
 
-      <!-- CA 证书安装指南 -->
+      <!-- 各系统配置指南 -->
       <div class="card rounded-xl p-6 mb-6">
         <h2 class="text-lg font-semibold mb-3 text-slate-100">
-          <span class="text-yellow-400">CA 证书安装指南</span>
+          <span class="text-yellow-400">各系统配置指南</span>
         </h2>
-        <div class="text-xs text-slate-400 space-y-3">
+        <div class="text-xs text-slate-400 space-y-4">
           <div>
-            <p class="font-medium text-slate-300 mb-1">Windows（用 <code class="text-blue-300">ca.p12</code>）</p>
+            <p class="font-medium text-slate-300 mb-1">Windows 11/10</p>
+            <p class="mb-1">使用文件：<code class="text-blue-300">client_win.p12</code></p>
             <ol class="list-decimal list-inside space-y-1 ml-2">
-              <li>下载 <code class="text-blue-300">ca.p12</code>（含私钥，需输入 CA 密码安装）</li>
-              <li>双击打开 → 安装证书</li>
-              <li>存储位置选"本地计算机" → 下一步</li>
-              <li>输入 CA 密码 → 选"将所有的证书都放入下列存储"</li>
-              <li>浏览 → 选择 <strong class="text-yellow-200">"受信任的根证书颁发机构"</strong> → 确定</li>
-              <li>完成安装</li>
+              <li>双击 <code class="text-blue-300">client_win.p12</code> → 安装证书</li>
+              <li>存储位置选 <strong class="text-yellow-200">"本地计算机"</strong> → 下一步</li>
+              <li>输入客户端密码 → 下一步</li>
+              <li>证书存储选 <strong class="text-yellow-200">"个人"</strong> → 下一步 → 完成</li>
+            </ol>
+            <p class="mt-1 text-slate-500">提示：如遇提示证书不可信，需额外安装 CA 证书：双击 <code class="text-blue-300">caCert.crt</code> → 安装到"本地计算机" → <strong class="text-yellow-200">"受信任的根证书颁发机构"</strong></p>
+          </div>
+          <div>
+            <p class="font-medium text-slate-300 mb-1">Android（strongSwan App）</p>
+            <p class="mb-1">使用文件：<code class="text-blue-300">client_android.p12</code></p>
+            <ol class="list-decimal list-inside space-y-1 ml-2">
+              <li>将 <code class="text-blue-300">client_android.p12</code> 传到手机</li>
+              <li>打开 strongSwan App → 添加 VPN 配置</li>
+              <li>选择 <strong class="text-yellow-200">"IKEv2 证书"</strong> 认证方式</li>
+              <li>用户证书选择 <code class="text-blue-300">client_android.p12</code>，输入客户端密码</li>
+              <li>CA 证书选择 <strong class="text-yellow-200">"自动选择"</strong>（P12 中已包含 CA）</li>
             </ol>
           </div>
           <div>
-            <p class="font-medium text-slate-300 mb-1">Android（用 <code class="text-blue-300">caCert.crt</code>）</p>
+            <p class="font-medium text-slate-300 mb-1">iOS / macOS</p>
+            <p class="mb-1">使用文件：<code class="text-blue-300">client_ios.p12</code> + <code class="text-blue-300">caCert.crt</code></p>
             <ol class="list-decimal list-inside space-y-1 ml-2">
-              <li>下载 <code class="text-blue-300">caCert.crt</code>（仅公钥证书）到手机</li>
-              <li>设置 → 安全 → 加密与凭据 → 从存储设备安装</li>
-              <li>选择 CA 证书 → 选择文件 → 命名 → 安装</li>
-              <li>部分 Android 需要设锁屏密码才能安装证书</li>
-            </ol>
-          </div>
-          <div>
-            <p class="font-medium text-slate-300 mb-1">iOS / macOS（用 <code class="text-blue-300">caCert.crt</code>）</p>
-            <ol class="list-decimal list-inside space-y-1 ml-2">
-              <li>通过 AirDrop 或邮件发送 <code class="text-blue-300">caCert.crt</code> 到设备</li>
-              <li>打开文件 → 允许安装描述文件</li>
-              <li>去 <strong class="text-yellow-200">设置 → 通用 → VPN与设备管理</strong> 安装描述文件</li>
-              <li>再去 <strong class="text-yellow-200">设置 → 通用 → 关于本机 → 证书信任设置</strong></li>
-              <li>找到 CA 证书，<strong class="text-yellow-200">开启完全信任</strong>（这一步很重要！）</li>
+              <li>通过 AirDrop 或邮件将两个文件发送到设备</li>
+              <li>先安装 <code class="text-blue-300">caCert.crt</code> → 允许安装描述文件</li>
+              <li>去 <strong class="text-yellow-200">设置 → 通用 → VPN与设备管理</strong> → 安装描述文件</li>
+              <li>再安装 <code class="text-blue-300">client_ios.p12</code>，输入客户端密码 → 同样方式安装</li>
+              <li><strong class="text-yellow-200">重要：</strong>设置 → 通用 → 关于本机 → 证书信任设置 → <strong class="text-yellow-200">开启 CA 证书的完全信任</strong></li>
             </ol>
           </div>
         </div>
@@ -310,7 +310,7 @@
           </div>
           <div>
             <p class="font-medium text-yellow-300">Q: 证书有效期多久？</p>
-            <p>A: 默认 50 年（18250天），一步到位不用频繁换证书</p>
+            <p>A: 默认 50 年（18250天）。<strong class="text-yellow-200">Apple 设备要求 ≤825 天</strong>，否则拒绝信任，可为 Apple 设备单独生成 825 天有效期的证书</p>
           </div>
           <div>
             <p class="font-medium text-yellow-300">Q: 客户端名称有什么用？</p>
@@ -337,6 +337,14 @@ const form = document.getElementById('certForm');
 const btn = document.getElementById('generateBtn');
 const resultSection = document.getElementById('resultSection');
 const errorSection = document.getElementById('errorSection');
+const lifetimeWarn = document.getElementById('lifetimeWarn');
+
+function checkLifetime() {
+  const cl = parseInt(form.querySelector('[name="cert_lifetime"]').value) || 0;
+  lifetimeWarn.classList.toggle('hidden', cl <= 3650);
+}
+form.querySelector('[name="cert_lifetime"]').addEventListener('input', checkLifetime);
+checkLifetime();
 
 const dlIcon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>';
 
@@ -403,7 +411,7 @@ async function loadExisting() {
     fillForm(d);
     showResult({
       ca: {subject: d.ca_subject, not_after: d.ca_not_after},
-      server: {subject: d.server_subject, not_after: d.server_not_after, cert_pem: null, key_pem: null},
+      server: {subject: d.server_subject, not_after: d.server_not_after, cert_pem: d.server_cert_pem || null, key_pem: d.server_key_pem || null},
       clients: d.clients
     }, {domain: d.domain, ca_pass: d.ca_pass, client_pass: d.client_pass, generated_at: d.generated_at});
   } catch (e) {

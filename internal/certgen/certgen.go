@@ -14,16 +14,23 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
+var ikeIntermediateExt = pkix.Extension{
+	Id:    []int{1, 3, 6, 1, 5, 5, 8, 2, 2},
+	Value: []byte{},
+}
+
 type CertResult struct {
 	CA struct {
 		CertPEM  string `json:"cert_pem"`
 		CertDER  []byte `json:"-"`
+		KeyPEM   string `json:"key_pem"`
 		P12      []byte `json:"-"`
 		Subject  string `json:"subject"`
 		NotAfter string `json:"not_after"`
 	} `json:"ca"`
 	Server struct {
 		CertPEM  string `json:"cert_pem"`
+		CertDER  []byte `json:"-"`
 		KeyPEM   string `json:"key_pem"`
 		Subject  string `json:"subject"`
 		NotAfter string `json:"not_after"`
@@ -33,6 +40,7 @@ type CertResult struct {
 
 type ClientCertResult struct {
 	Name     string `json:"name"`
+	CertPEM  string `json:"cert_pem"`
 	CertDER  []byte `json:"-"`
 	P12      []byte `json:"-"`
 	Subject  string `json:"subject"`
@@ -59,8 +67,8 @@ func GenerateCA(keyBits int, country, org, caName string, lifetimeDays int) (*rs
 		NotAfter:              time.Now().Add(time.Duration(lifetimeDays) * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
-		IsCA:                  true,
-		MaxPathLen:            0,
+		IsCA:       true,
+		MaxPathLen: 0,
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
@@ -84,13 +92,14 @@ func GenerateServerCert(caKey *rsa.PrivateKey, caCert *x509.Certificate, country
 		return nil, nil, nil, nil, err
 	}
 	tmpl := &x509.Certificate{
-		SerialNumber: sn,
-		Subject:      pkix.Name{Country: []string{country}, Organization: []string{org}, CommonName: domain},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Duration(lifetimeDays) * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{domain},
+		SerialNumber:    sn,
+		Subject:         pkix.Name{Country: []string{country}, Organization: []string{org}, CommonName: domain},
+		NotBefore:       time.Now(),
+		NotAfter:        time.Now().Add(time.Duration(lifetimeDays) * 24 * time.Hour),
+		KeyUsage:        x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:        []string{domain},
+		ExtraExtensions: []pkix.Extension{ikeIntermediateExt},
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, caCert, &key.PublicKey, caKey)
 	if err != nil {
@@ -105,52 +114,108 @@ func GenerateServerCert(caKey *rsa.PrivateKey, caCert *x509.Certificate, country
 	return key, cert, certPEM, keyPEM, nil
 }
 
-func GenerateClientCert(caKey *rsa.PrivateKey, caCert *x509.Certificate, country, org, clientName, sharedSAN string, lifetimeDays int) (*rsa.PrivateKey, *x509.Certificate, error) {
+func GenerateClientCert(caKey *rsa.PrivateKey, caCert *x509.Certificate, country, org, clientName, sharedSAN string, lifetimeDays int) (*rsa.PrivateKey, *x509.Certificate, []byte, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate client key: %w", err)
+		return nil, nil, nil, fmt.Errorf("generate client key: %w", err)
 	}
 	sn, err := serialNumber()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	sans := []string{clientName}
-	if sharedSAN != "" && !contains(sans, sharedSAN) {
-		sans = append(sans, sharedSAN)
+	sanValue := sharedSAN
+	if sanValue == "" {
+		sanValue = "IKEv2Clients"
+	}
+	if sanValue != clientName {
+		sans = append(sans, sanValue)
 	}
 	tmpl := &x509.Certificate{
-		SerialNumber: sn,
-		Subject:      pkix.Name{Country: []string{country}, Organization: []string{org}, CommonName: clientName},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Duration(lifetimeDays) * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		DNSNames:     sans,
+		SerialNumber:    sn,
+		Subject:         pkix.Name{Country: []string{country}, Organization: []string{org}, CommonName: clientName},
+		NotBefore:       time.Now(),
+		NotAfter:        time.Now().Add(time.Duration(lifetimeDays) * 24 * time.Hour),
+		KeyUsage:        x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		DNSNames:        sans,
+		ExtraExtensions: []pkix.Extension{ikeIntermediateExt},
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, caCert, &key.PublicKey, caKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create client cert: %w", err)
+		return nil, nil, nil, fmt.Errorf("create client cert: %w", err)
 	}
 	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse client cert: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse client cert: %w", err)
 	}
-	return key, cert, nil
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	return key, cert, certPEM, nil
 }
 
 func EncodeP12(key *rsa.PrivateKey, cert *x509.Certificate, caCerts []*x509.Certificate, password string) ([]byte, error) {
 	return pkcs12.LegacyRC2.Encode(key, cert, caCerts, password)
 }
 
-func GenerateAll(country, org, caName, domain string, clientNames []string, sharedSAN string, caLifetimeDays, certLifetimeDays int, caPass, clientPass string) (*CertResult, error) {
+func LoadCAFromDisk(dataDir string) (*rsa.PrivateKey, *x509.Certificate, error) {
+	keyData, err := os.ReadFile(dataDir + "/caKey.pem")
+	if err != nil {
+		return nil, nil, err
+	}
+	block, _ := pem.Decode(keyData)
+	if block == nil {
+		return nil, nil, fmt.Errorf("failed to decode CA key PEM")
+	}
+	caKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse CA key: %w", err)
+	}
+
+	certData, err := os.ReadFile(dataDir + "/caCert.pem")
+	if err != nil {
+		return nil, nil, err
+	}
+	block, _ = pem.Decode(certData)
+	if block == nil {
+		return nil, nil, fmt.Errorf("failed to decode CA cert PEM")
+	}
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse CA cert: %w", err)
+	}
+
+	if !caKey.PublicKey.Equal(caCert.PublicKey) {
+		return nil, nil, fmt.Errorf("CA key and certificate do not match")
+	}
+
+	return caKey, caCert, nil
+}
+
+func GenerateAll(country, org, caName, domain string, clientNames []string, sharedSAN string, caLifetimeDays, certLifetimeDays int, caPass, clientPass string, dataDir string) (*CertResult, error) {
 	result := &CertResult{}
 
-	caKey, caCert, caCertPEM, err := GenerateCA(4096, country, org, caName, caLifetimeDays)
-	if err != nil {
-		return nil, fmt.Errorf("generate CA: %w", err)
+	var caKey *rsa.PrivateKey
+	var caCert *x509.Certificate
+	var caCertPEM []byte
+	var caKeyPEM []byte
+
+	existingCAKey, existingCACert, err := LoadCAFromDisk(dataDir)
+	if err == nil && existingCAKey != nil && existingCACert != nil {
+		caKey = existingCAKey
+		caCert = existingCACert
+		caCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCert.Raw})
+		caKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
+	} else {
+		caKey, caCert, caCertPEM, err = GenerateCA(4096, country, org, caName, caLifetimeDays)
+		if err != nil {
+			return nil, fmt.Errorf("generate CA: %w", err)
+		}
+		caKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
 	}
+
 	result.CA.CertPEM = string(caCertPEM)
 	result.CA.CertDER = caCert.Raw
+	result.CA.KeyPEM = string(caKeyPEM)
 	result.CA.Subject = caCert.Subject.String()
 	result.CA.NotAfter = caCert.NotAfter.Format("2006-01-02")
 
@@ -165,12 +230,13 @@ func GenerateAll(country, org, caName, domain string, clientNames []string, shar
 		return nil, fmt.Errorf("generate server cert: %w", err)
 	}
 	result.Server.CertPEM = string(serverCertPEM)
+	result.Server.CertDER = serverCert.Raw
 	result.Server.KeyPEM = string(serverKeyPEM)
 	result.Server.Subject = serverCert.Subject.String()
 	result.Server.NotAfter = serverCert.NotAfter.Format("2006-01-02")
 
 	for _, clientName := range clientNames {
-		clientKey, clientCert, err := GenerateClientCert(caKey, caCert, country, org, clientName, sharedSAN, certLifetimeDays)
+		clientKey, clientCert, clientCertPEM, err := GenerateClientCert(caKey, caCert, country, org, clientName, sharedSAN, certLifetimeDays)
 		if err != nil {
 			return nil, fmt.Errorf("generate client cert for %s: %w", clientName, err)
 		}
@@ -180,6 +246,7 @@ func GenerateAll(country, org, caName, domain string, clientNames []string, shar
 		}
 		cr := ClientCertResult{
 			Name:     clientName,
+			CertPEM:  string(clientCertPEM),
 			CertDER:  clientCert.Raw,
 			P12:      clientP12,
 			Subject:  clientCert.Subject.String(),
@@ -202,6 +269,9 @@ func SaveToDisk(result *CertResult, outputDir, domain string) error {
 	if err := os.WriteFile(outputDir+"/caCert.crt", result.CA.CertDER, 0644); err != nil {
 		return fmt.Errorf("write caCert.crt: %w", err)
 	}
+	if err := os.WriteFile(outputDir+"/caKey.pem", []byte(result.CA.KeyPEM), 0600); err != nil {
+		return fmt.Errorf("write caKey.pem: %w", err)
+	}
 	if err := os.WriteFile(outputDir+"/ca.p12", result.CA.P12, 0600); err != nil {
 		return fmt.Errorf("write ca.p12: %w", err)
 	}
@@ -209,7 +279,10 @@ func SaveToDisk(result *CertResult, outputDir, domain string) error {
 	if err := os.WriteFile(outputDir+"/serverCert_"+domain+".pem", []byte(result.Server.CertPEM), 0644); err != nil {
 		return fmt.Errorf("write server cert: %w", err)
 	}
-	if err := os.WriteFile(outputDir+"/serverKey_"+domain+".pem", []byte(result.Server.KeyPEM), 0644); err != nil {
+	if err := os.WriteFile(outputDir+"/serverCert_"+domain+".crt", result.Server.CertDER, 0644); err != nil {
+		return fmt.Errorf("write server cert crt: %w", err)
+	}
+	if err := os.WriteFile(outputDir+"/serverKey_"+domain+".pem", []byte(result.Server.KeyPEM), 0600); err != nil {
 		return fmt.Errorf("write server key: %w", err)
 	}
 
@@ -220,16 +293,10 @@ func SaveToDisk(result *CertResult, outputDir, domain string) error {
 		if err := os.WriteFile(outputDir+"/clientCert_"+c.Name+".crt", c.CertDER, 0644); err != nil {
 			return fmt.Errorf("write client %s cert: %w", c.Name, err)
 		}
+		if err := os.WriteFile(outputDir+"/clientCert_"+c.Name+".pem", []byte(c.CertPEM), 0644); err != nil {
+			return fmt.Errorf("write client %s pem: %w", c.Name, err)
+		}
 	}
 
 	return nil
-}
-
-func contains(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

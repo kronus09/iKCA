@@ -1,12 +1,14 @@
 services:
   ikca:
-    build: .
-    image: ikca:latest
+    image: dk.529353.xyz:8426/ikca:latest
     container_name: ikca
     ports:
       - "20509:20509"
     volumes:
-      - ./data:/app/data
+      - ikca-data:/app/data
     environment:
       - TZ=Asia/Shanghai
     restart: unless-stopped
+
+volumes:
+  ikca-data:

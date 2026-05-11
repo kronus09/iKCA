@@ -75,7 +75,7 @@ func runCLI(domain, country, org, caName, clientNamesStr, sharedSAN string, caLi
 	fmt.Printf("Domain: %s | Clients: %v\n", domain, clients)
 	fmt.Printf("Output: %s\n", outputDir)
 
-	result, err := certgen.GenerateAll(country, org, caName, domain, clients, sharedSAN, caLifetime, certLifetime, caPass, clientPass)
+	result, err := certgen.GenerateAll(country, org, caName, domain, clients, sharedSAN, caLifetime, certLifetime, caPass, clientPass, outputDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -101,8 +101,10 @@ func runWeb(listenAddr, dataDir string) {
 	mux.HandleFunc("/api/download/ca-cert", web.HandleDownloadCACert)
 	mux.HandleFunc("/api/download/ca-crt", web.HandleDownloadCACrt)
 	mux.HandleFunc("/api/download/server-cert", web.HandleDownloadServerCert)
+	mux.HandleFunc("/api/download/server-crt", web.HandleDownloadServerCrt)
 	mux.HandleFunc("/api/download/server-key", web.HandleDownloadServerKey)
 	mux.HandleFunc("/api/download/client", web.HandleDownloadClient)
+	mux.HandleFunc("/api/download/client-cert", web.HandleDownloadClientCert)
 	mux.HandleFunc("/api/list-data", web.HandleListData)
 
 	staticSub, err := fs.Sub(web.StaticFS, "static")

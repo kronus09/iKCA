@@ -2,6 +2,8 @@ data/
 *.pem
 *.p12
 *.crt
+*.fpk
 ikca
+*.tgz
 .codeartsdoer/
 .arts/

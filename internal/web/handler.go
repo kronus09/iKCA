@@ -113,11 +113,45 @@ func HandleStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, APIResponse{Success: true, Data: map[string]interface{}{"exists": false}})
 		return
 	}
-	type statusResp struct {
-		Exists         bool          `json:"exists"`
-		*SavedConfig
+
+	if lastResult == nil {
+		loadResultFromDisk(cfg)
 	}
-	writeJSON(w, http.StatusOK, APIResponse{Success: true, Data: statusResp{Exists: true, SavedConfig: cfg}})
+
+	type statusResp struct {
+		Exists   bool   `json:"exists"`
+		*SavedConfig
+		ServerCertPEM string `json:"server_cert_pem"`
+		ServerKeyPEM  string `json:"server_key_pem"`
+	}
+	writeJSON(w, http.StatusOK, APIResponse{Success: true, Data: statusResp{
+		Exists:        true,
+		SavedConfig:   cfg,
+		ServerCertPEM: lastResult.Server.CertPEM,
+		ServerKeyPEM:  lastResult.Server.KeyPEM,
+	}})
+}
+
+func loadResultFromDisk(cfg *SavedConfig) {
+	result := &certgen.CertResult{}
+
+	caCertPEM, _ := os.ReadFile(filepath.Join(DataDir, "caCert.pem"))
+	caKeyPEM, _ := os.ReadFile(filepath.Join(DataDir, "caKey.pem"))
+	result.CA.CertPEM = string(caCertPEM)
+	result.CA.KeyPEM = string(caKeyPEM)
+	result.CA.Subject = cfg.CASubject
+	result.CA.NotAfter = cfg.CANotAfter
+
+	serverCertPEM, _ := os.ReadFile(filepath.Join(DataDir, fmt.Sprintf("serverCert_%s.pem", cfg.Domain)))
+	serverKeyPEM, _ := os.ReadFile(filepath.Join(DataDir, fmt.Sprintf("serverKey_%s.pem", cfg.Domain)))
+	result.Server.CertPEM = string(serverCertPEM)
+	result.Server.KeyPEM = string(serverKeyPEM)
+	result.Server.Subject = cfg.ServerSubject
+	result.Server.NotAfter = cfg.ServerNotAfter
+
+	if len(caCertPEM) > 0 || len(serverCertPEM) > 0 {
+		storeResult(result, cfg.Domain)
+	}
 }
 
 func HandleGenerate(w http.ResponseWriter, r *http.Request) {
@@ -183,6 +217,7 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		clientNames, req.SharedSAN,
 		req.CaLifetime, req.CertLifetime,
 		req.CaPass, req.ClientPass,
+		DataDir,
 	)
 	if err != nil {
 		log.Printf("Error generating certs: %v", err)
@@ -200,6 +235,7 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 
 	type responseData struct {
 		CA struct {
+			CertPEM  string `json:"cert_pem"`
 			Subject  string `json:"subject"`
 			NotAfter string `json:"not_after"`
 		} `json:"ca"`
@@ -211,6 +247,7 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		} `json:"server"`
 		Clients []struct {
 			Name     string `json:"name"`
+			CertPEM  string `json:"cert_pem"`
 			Subject  string `json:"subject"`
 			NotAfter string `json:"not_after"`
 		} `json:"clients"`
@@ -218,6 +255,7 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp responseData
+	resp.CA.CertPEM = result.CA.CertPEM
 	resp.CA.Subject = result.CA.Subject
 	resp.CA.NotAfter = result.CA.NotAfter
 	resp.Server.CertPEM = result.Server.CertPEM
@@ -228,9 +266,10 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	for _, c := range result.Clients {
 		resp.Clients = append(resp.Clients, struct {
 			Name     string `json:"name"`
+			CertPEM  string `json:"cert_pem"`
 			Subject  string `json:"subject"`
 			NotAfter string `json:"not_after"`
-		}{Name: c.Name, Subject: c.Subject, NotAfter: c.NotAfter})
+		}{Name: c.Name, CertPEM: c.CertPEM, Subject: c.Subject, NotAfter: c.NotAfter})
 	}
 
 	storeResult(result, req.Domain)
@@ -267,6 +306,12 @@ func HandleDownloadCACert(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleDownloadCACrt(w http.ResponseWriter, r *http.Request) {
+	if lastResult != nil {
+		w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+		w.Header().Set("Content-Disposition", "attachment; filename=caCert.crt")
+		w.Write(lastResult.CA.CertDER)
+		return
+	}
 	serveFromDataDir(w, r, "caCert.crt")
 }
 
@@ -302,6 +347,22 @@ func HandleDownloadServerKey(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(lastResult.Server.KeyPEM))
 }
 
+func HandleDownloadServerCrt(w http.ResponseWriter, r *http.Request) {
+	if lastResult != nil {
+		filename := fmt.Sprintf("serverCert_%s.crt", lastDomain)
+		w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+		w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+		w.Write(lastResult.Server.CertDER)
+		return
+	}
+	cfg := loadConfig()
+	if cfg != nil {
+		serveFromDataDir(w, r, fmt.Sprintf("serverCert_%s.crt", cfg.Domain))
+		return
+	}
+	http.Error(w, "No certificates generated yet", http.StatusNotFound)
+}
+
 func HandleDownloadClient(w http.ResponseWriter, r *http.Request) {
 	clientName := r.URL.Query().Get("name")
 	if clientName == "" {
@@ -319,6 +380,25 @@ func HandleDownloadClient(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	serveFromDataDir(w, r, fmt.Sprintf("client_%s.p12", clientName))
+}
+
+func HandleDownloadClientCert(w http.ResponseWriter, r *http.Request) {
+	clientName := r.URL.Query().Get("name")
+	if clientName == "" {
+		http.Error(w, "Missing client name parameter", http.StatusBadRequest)
+		return
+	}
+	if lastResult != nil {
+		for _, c := range lastResult.Clients {
+			if c.Name == clientName {
+				w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=clientCert_%s.crt", clientName))
+				w.Write(c.CertDER)
+				return
+			}
+		}
+	}
+	serveFromDataDir(w, r, fmt.Sprintf("clientCert_%s.crt", clientName))
 }
 
 func HandleListData(w http.ResponseWriter, r *http.Request) {
