@@ -1,8 +1,28 @@
+# Git
 .git
+.gitignore
+
+# CI/CD
+.github/
+
+# IDE
+.vscode/
+.idea/
 .codeartsdoer/
 .arts/
-data/
-*.tgz
-ikca
+
+# Docs
 README.md
+LICENSE
+
+# Runtime data
+data/
+
+# Build artifacts
+ikca
+*.tgz
+
+# Docker
 docker-deploy.yaml
+Dockerfile
+.dockerignore

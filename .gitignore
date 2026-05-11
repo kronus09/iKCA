@@ -1,9 +1,42 @@
-data/
+# Binaries
+ikca
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+*.tgz
+*.fpk
+
+# Go
+vendor/
+
+# Certificates and keys (runtime generated)
 *.pem
 *.p12
 *.crt
-*.fpk
-ikca
-*.tgz
+data/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CodeArts
 .codeartsdoer/
 .arts/
