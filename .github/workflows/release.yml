@@ -32,6 +32,15 @@ jobs:
             echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Create tag if not exists
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if ! git tag -l "$TAG" | grep -q "$TAG"; then
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
