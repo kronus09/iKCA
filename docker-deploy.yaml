@@ -1,6 +1,6 @@
 services:
   ikca:
-    image: dk.529353.xyz:8426/ikca:latest
+    image: ghcr.io/kronus09/ikca:latest
     container_name: ikca
     ports:
       - "20509:20509"
