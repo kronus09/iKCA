@@ -26,7 +26,7 @@
 
 从 [GitHub Releases](https://github.com/kronus09/iKCA/releases) 下载：
 
-- `ikca-desktop-windows-amd64.exe` — 双击运行，原生窗口界面
+- `ikca-desktop-windows-amd64.exe` — 双击运行（首次需右键→属性→解除锁定），原生窗口界面
 - `ikca-cli-windows-amd64.exe` — 命令行使用
 - `SHA256SUMS.txt` — 校验和
 
