@@ -1,10 +1,15 @@
 # iKCA - IKEv2 证书生成器
 
-基于 Go 语言开发的 IKEv2 自签证书生成工具，支持 50 年有效期证书，提供 Web UI 和 CLI 两种使用方式。
+<img src="logo.png" width="64" height="64" align="left" style="margin-right:12px">
+
+基于 Go 语言开发的 IKEv2 自签证书生成工具，支持 50 年有效期证书，提供 Web UI、CLI 和 Windows 桌面版三种使用方式。
+
+<br>
 
 ## 功能特性
 
 - **Web UI 交互界面**：可视化填写参数，一键生成
+- **Windows 桌面版**：原生窗口，双击即用，无需安装
 - **CLI 命令行工具**：脚本化批量生成
 - **50 年证书有效期**：告别频繁换证
 - **支持 Windows/Android/iOS 原生连接**：无需额外客户端
@@ -17,20 +22,39 @@
 
 ## 安装使用
 
-### 方式一：直接运行（Go 环境）
-```bash
-git clone <your-repo>
-cd ikca
-go build -ldflags="-s -w" -o ikca .
-./ikca -mode web
+### 方式一：Windows 桌面版（推荐）
+
+从 [GitHub Releases](https://github.com/kronus09/iKCA/releases) 下载：
+
+- `ikca-desktop-windows-amd64.exe` — 双击运行，原生窗口界面
+- `ikca-cli-windows-amd64.exe` — 命令行使用
+- `SHA256SUMS.txt` — 校验和
+
+**桌面版使用：**
+1. 下载 `ikca-desktop-windows-amd64.exe`
+2. 双击运行
+3. 填写参数，点击生成
+4. 点击"打开证书目录"获取证书文件
+
+**CLI 使用：**
+```cmd
+ikca-cli-windows-amd64.exe -mode cli -domain your.domain.com -ca-pass xxx -client-pass xxx
 ```
 
 ### 方式二：Docker 运行
 ```bash
-docker run -d -p 20509:20509 -v ikca-data:/app/data --name ikca ikca:latest
+docker run -d -p 20509:20509 -v ikca-data:/app/data --name ikca ghcr.io/kronus09/ikca:latest
 ```
 
 启动后访问：`http://localhost:20509`
+
+### 方式三：源码编译（Go 环境）
+```bash
+git clone https://github.com/kronus09/iKCA.git
+cd iKCA
+go build -ldflags="-s -w" -o ikca .
+./ikca -mode web
+```
 
 ## 配置参数
 
@@ -109,6 +133,7 @@ volumes:
 - **后端**：Go + net/http
 - **证书生成**：crypto/x509 + go-pkcs12（LegacyRC2）
 - **前端**：HTML + JavaScript + Tailwind CSS（本地化）
+- **桌面版**：Wails v2 + WebView2
 - **部署**：Docker + scratch 镜像
 
 ## 注意事项
