@@ -142,6 +142,7 @@ volumes:
 2. P12 文件已包含 CA 证书链，Windows/Android 安装 p12 即可
 3. iOS/macOS 需额外安装 caCert.crt 并开启完全信任
 4. CA 重用：data/ 目录下已有 caKey.pem/caCert.pem 时自动复用
+5. **Windows 安全警告**：从 GitHub 下载的 exe 首次运行时 Windows SmartScreen 可能提示"未识别的应用"，这是正常现象（exe 未做代码签名）。解决方法：右键 exe → 属性 → 勾选"解除锁定" → 确定，即可正常运行
 
 ## 许可证
 
