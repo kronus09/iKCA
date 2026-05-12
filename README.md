@@ -90,7 +90,7 @@ data/
 ```yaml
 services:
   ikca:
-    image: ikca:latest
+    image: ghcr.io/kronus09/ikca:latest
     container_name: ikca
     ports:
       - "20509:20509"
