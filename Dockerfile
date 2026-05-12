@@ -1,14 +1,6 @@
-FROM golang:1.24-alpine AS builder
-RUN apk add --no-cache git
-WORKDIR /build
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ikca .
-
 FROM scratch
-COPY --from=builder /build/ikca /app/ikca
-COPY --from=builder /build/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY ikca /app/ikca
+COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 WORKDIR /app
 VOLUME ["/app/data"]
 EXPOSE 20509
