@@ -16,6 +16,13 @@ ikca
 
 # Go
 vendor/
+go.work
+go.work.sum
+
+# Desktop (Wails)
+desktop/build/bin/
+desktop/frontend/dist/
+desktop/frontend/node_modules/
 
 # Certificates and keys (runtime generated)
 *.pem

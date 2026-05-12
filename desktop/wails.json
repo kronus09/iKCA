@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "iKCA",
+  "outputfilename": "iKCA",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "kronus09"
+  },
+  "info": {
+    "companyName": "kronus09",
+    "productName": "iKCA - IKEv2 证书生成器",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2025 kronus09",
+    "comments": "IKEv2自签证书生成工具"
+  }
+}
