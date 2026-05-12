@@ -18,11 +18,9 @@ LICENSE
 # Runtime data
 data/
 
-# Build artifacts
+# Local build artifacts
 ikca
 *.tgz
 
 # Docker
 docker-deploy.yaml
-Dockerfile
-.dockerignore
